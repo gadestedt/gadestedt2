@@ -9,9 +9,12 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 const PORT = process.env.PORT || 3000;
+const ENABLE_MOCK = process.env.ENABLE_MOCK !== 'false';
 
 let currentPort = null;
 let currentParser = null;
+let mockInterval = null;
+let connectionType = null;
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -25,9 +28,20 @@ function broadcast(message) {
   });
 }
 
+function stopMock() {
+  if (mockInterval) {
+    clearInterval(mockInterval);
+    mockInterval = null;
+  }
+  if (connectionType === 'mock') {
+    connectionType = null;
+  }
+}
+
 function closePort() {
   return new Promise((resolve) => {
     if (!currentPort) {
+      stopMock();
       resolve();
       return;
     }
@@ -41,6 +55,8 @@ function closePort() {
     }
 
     portToClose.close(() => {
+      stopMock();
+      connectionType = null;
       broadcast({ type: 'status', connected: false, message: 'Frånkopplad från port' });
       resolve();
     });
@@ -50,7 +66,18 @@ function closePort() {
 app.get('/api/ports', async (_req, res) => {
   try {
     const ports = await SerialPort.list();
-    res.json({ ports });
+    const withMock = ENABLE_MOCK
+      ? [
+          ...ports,
+          {
+            path: 'mock',
+            manufacturer: 'Simulerad',
+            friendlyName: 'Demo-ström',
+          },
+        ]
+      : ports;
+
+    res.json({ ports: withMock });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -66,10 +93,34 @@ app.post('/api/connect', async (req, res) => {
 
   await closePort();
 
+  if (ENABLE_MOCK && portPath === 'mock') {
+    stopMock();
+    connectionType = 'mock';
+    mockInterval = setInterval(() => {
+      const now = new Date();
+      broadcast({
+        type: 'data',
+        raw: JSON.stringify({
+          temperature: 22 + Math.random() * 2,
+          humidity: 40 + Math.random() * 5,
+          co2: 400 + Math.round(Math.random() * 50),
+          ts: now.toISOString(),
+        }),
+        timestamp: now.toISOString(),
+        parsed: null,
+      });
+    }, 1000);
+
+    broadcast({ type: 'status', connected: true, port: 'mock', baudRate, message: 'Ansluten till mock-data' });
+    res.json({ connected: true, port: 'mock', baudRate });
+    return;
+  }
+
   const serialPort = new SerialPort({ path: portPath, baudRate, autoOpen: false });
   const parser = serialPort.pipe(new ReadlineParser({ delimiter: /\r?\n/ }));
 
   serialPort.on('open', () => {
+    connectionType = 'serial';
     broadcast({ type: 'status', connected: true, port: portPath, baudRate });
   });
 
@@ -78,6 +129,7 @@ app.post('/api/connect', async (req, res) => {
   });
 
   serialPort.on('close', () => {
+    connectionType = null;
     broadcast({ type: 'status', connected: false, message: 'Porten stängdes.' });
   });
 
@@ -115,7 +167,7 @@ app.post('/api/disconnect', async (_req, res) => {
 });
 
 wss.on('connection', (ws) => {
-  ws.send(JSON.stringify({ type: 'status', connected: !!currentPort }));
+  ws.send(JSON.stringify({ type: 'status', connected: !!currentPort || connectionType === 'mock' }));
 });
 
 server.listen(PORT, () => {

@@ -21,17 +21,22 @@ async function fetchPorts() {
       option.textContent = 'Inga portar hittades';
       option.value = '';
       portSelect.appendChild(option);
+      lastMessage.textContent = 'Ingen port hittades på datorn. Aktivera enhet eller använd mock-läge.';
       return;
     }
 
     data.ports.forEach((port) => {
       const option = document.createElement('option');
       option.value = port.path;
-      option.textContent = `${port.path} (${port.manufacturer || 'okänd tillverkare'})`;
+      const label = port.friendlyName
+        ? `${port.friendlyName} (${port.path})`
+        : `${port.path} (${port.manufacturer || 'okänd tillverkare'})`;
+      option.textContent = label;
       portSelect.appendChild(option);
     });
   } catch (error) {
     console.error('Kunde inte hämta portar', error);
+    lastMessage.textContent = 'Kunde inte hämta portar. Kontrollera servern eller prova att ladda om.';
   }
 }
 
