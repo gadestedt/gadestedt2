@@ -235,8 +235,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--smoothing-factor",
         type=float,
-        default=0.25,
-        help="Andel (0-1) av nytt värde som ska blandas in för mjukare uppdateringar",
+        default=0.0,
+        help="Andel (0-1) av nytt värde som ska blandas in för mjukare uppdateringar. 0 visar råvärden",
     )
     return parser.parse_args()
 
