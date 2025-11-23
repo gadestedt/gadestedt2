@@ -80,14 +80,14 @@ class SenseairTSenseReader(SensorProvider):
 class SimulatedSensorProvider(SensorProvider):
     def __init__(self) -> None:
         self.current_values: Dict[str, SensorValue] = {
+            "CO₂": ("ppm", 650.0),
             "Temperatur": ("°C", 21.5),
             "Luftfuktighet": ("%", 40.0),
-            "CO₂": ("ppm", 650.0),
         }
         self.min_max: Dict[str, Tuple[float, float]] = {
+            "CO₂": (400.0, 1200.0),
             "Temperatur": (18.0, 26.0),
             "Luftfuktighet": (25.0, 60.0),
-            "CO₂": (400.0, 1200.0),
         }
 
     def _update_value(self, name: str) -> float:
@@ -189,6 +189,9 @@ class SensorGUI:
         except Exception as exc:  # noqa: BLE001 - bredt för att fånga kommunikationsfel
             self.timestamp_var.set(f"Fel vid start: {exc}")
             initial_readings = []
+
+        desired_order = {"CO₂": 0, "Temperatur": 1, "Luftfuktighet": 2}
+        initial_readings.sort(key=lambda reading: desired_order.get(reading.name, len(desired_order)))
 
         color_cycle = {"CO₂": "#0ea5e9", "Temperatur": "#8b5cf6", "Luftfuktighet": "#10b981"}
 
