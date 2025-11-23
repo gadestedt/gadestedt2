@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tSense Dashboard</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>tSense Dashboard</h1>
+      <div class="status-row">
+        <span id="status-dot" class="status-dot offline"></span>
+        <span id="status-text">Inte ansluten</span>
+      </div>
+    </header>
+
+    <main>
+      <section class="card">
+        <h2>Anslutning</h2>
+        <div class="form-row">
+          <label>
+            Seriell port
+            <select id="port"></select>
+          </label>
+          <label>
+            Baud rate
+            <input id="baudRate" type="number" value="115200" min="1200" step="600" />
+          </label>
+          <div class="actions">
+            <button id="refresh" type="button">Uppdatera portar</button>
+            <button id="connect" type="button">Anslut</button>
+            <button id="disconnect" class="secondary" type="button" disabled>Frånkoppla</button>
+          </div>
+        </div>
+        <div class="badge">
+          Senaste meddelande:
+          <span id="last-message">-</span>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Live-data</h2>
+        <div id="log" class="list" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
