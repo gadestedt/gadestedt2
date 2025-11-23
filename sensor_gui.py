@@ -38,7 +38,9 @@ class SenseairTSenseReader(SensorProvider):
         co2_register: int = 0x0008,
         temperature_register: int = 0x0009,
         humidity_register: int = 0x000A,
-        decimals: int = 1,
+        co2_decimals: int = 0,
+        temperature_decimals: int = 1,
+        humidity_decimals: int = 1,
     ) -> None:
         import minimalmodbus
         import serial
@@ -54,18 +56,20 @@ class SenseairTSenseReader(SensorProvider):
         self.co2_register = co2_register
         self.temperature_register = temperature_register
         self.humidity_register = humidity_register
-        self.decimals = decimals
+        self.co2_decimals = co2_decimals
+        self.temperature_decimals = temperature_decimals
+        self.humidity_decimals = humidity_decimals
 
     def initial_readings(self) -> Iterable[SensorReading]:
         return self.read()
 
     def read(self) -> Iterable[SensorReading]:
-        co2 = self.instrument.read_register(self.co2_register, self.decimals, functioncode=4)
+        co2 = self.instrument.read_register(self.co2_register, self.co2_decimals, functioncode=4)
         temperature = self.instrument.read_register(
-            self.temperature_register, self.decimals, functioncode=4
+            self.temperature_register, self.temperature_decimals, functioncode=4
         )
         humidity = self.instrument.read_register(
-            self.humidity_register, self.decimals, functioncode=4
+            self.humidity_register, self.humidity_decimals, functioncode=4
         )
 
         yield SensorReading("CO₂", "ppm", co2)
@@ -136,7 +140,7 @@ class SensorGUI:
     def __init__(self, sensor_provider: "SensorProvider") -> None:
         self.root = tk.Tk()
         self.root.title("Sensorvärden")
-        self.root.configure(padx=20, pady=20)
+        self.root.configure(padx=24, pady=24, bg="#0f172a")
 
         self.sensor_provider = sensor_provider
         self.sensor_vars: Dict[str, Tuple[tk.StringVar, str]] = {}
@@ -145,21 +149,40 @@ class SensorGUI:
         self._update_values()
 
     def _build_ui(self) -> None:
-        header = tk.Label(self.root, text="Sensorpanel", font=("Helvetica", 16, "bold"))
+        header = tk.Label(
+            self.root,
+            text="Sensorpanel",
+            font=("Helvetica", 18, "bold"),
+            fg="#e2e8f0",
+            bg="#0f172a",
+        )
         header.grid(row=0, column=0, sticky="w")
 
-        timestamp_label = tk.Label(self.root, text="Senast uppdaterad:")
-        timestamp_label.grid(row=1, column=0, sticky="w", pady=(10, 0))
+        timestamp_label = tk.Label(
+            self.root,
+            text="Senast uppdaterad:",
+            font=("Helvetica", 10, "bold"),
+            fg="#94a3b8",
+            bg="#0f172a",
+        )
+        timestamp_label.grid(row=1, column=0, sticky="w", pady=(12, 0))
 
         self.timestamp_var = tk.StringVar(value="-")
-        timestamp_value = tk.Label(self.root, textvariable=self.timestamp_var, font=("Helvetica", 10))
+        timestamp_value = tk.Label(
+            self.root,
+            textvariable=self.timestamp_var,
+            font=("Helvetica", 10),
+            fg="#e2e8f0",
+            bg="#0f172a",
+        )
         timestamp_value.grid(row=2, column=0, sticky="w")
 
-        separator = tk.Frame(self.root, height=2, bd=1, relief="sunken")
-        separator.grid(row=3, column=0, sticky="we", pady=10)
+        separator = tk.Frame(self.root, height=2, bd=0, bg="#1e293b")
+        separator.grid(row=3, column=0, sticky="we", pady=14)
 
-        sensor_frame = tk.Frame(self.root)
-        sensor_frame.grid(row=4, column=0, sticky="w")
+        sensor_frame = tk.Frame(self.root, bg="#0f172a")
+        sensor_frame.grid(row=4, column=0, sticky="we")
+        sensor_frame.grid_columnconfigure(0, weight=1)
 
         try:
             initial_readings = list(self.sensor_provider.initial_readings())
@@ -167,15 +190,46 @@ class SensorGUI:
             self.timestamp_var.set(f"Fel vid start: {exc}")
             initial_readings = []
 
+        color_cycle = {"CO₂": "#0ea5e9", "Temperatur": "#8b5cf6", "Luftfuktighet": "#10b981"}
+
         for idx, reading in enumerate(initial_readings):
-            label = tk.Label(sensor_frame, text=reading.name, font=("Helvetica", 12))
-            label.grid(row=idx, column=0, sticky="w", padx=(0, 15), pady=2)
+            card = tk.Frame(
+                sensor_frame,
+                bg="#111827",
+                bd=1,
+                relief="solid",
+                highlightbackground="#1f2937",
+                highlightcolor="#1f2937",
+                padx=14,
+                pady=10,
+            )
+            card.grid(row=idx, column=0, sticky="we", pady=6)
+            card.grid_columnconfigure(1, weight=1)
+
+            color = color_cycle.get(reading.name, "#38bdf8")
+            accent = tk.Frame(card, width=8, bg=color)
+            accent.grid(row=0, column=0, rowspan=2, sticky="nsw", padx=(0, 12))
+
+            label = tk.Label(
+                card,
+                text=reading.name,
+                font=("Helvetica", 11, "bold"),
+                fg="#cbd5e1",
+                bg="#111827",
+            )
+            label.grid(row=0, column=1, sticky="w")
 
             value_var = tk.StringVar(value=f"{reading.value:0.1f} {reading.unit}")
             self.sensor_vars[reading.name] = (value_var, reading.unit)
 
-            value_label = tk.Label(sensor_frame, textvariable=value_var, font=("Helvetica", 12, "bold"))
-            value_label.grid(row=idx, column=1, sticky="w", pady=2)
+            value_label = tk.Label(
+                card,
+                textvariable=value_var,
+                font=("Helvetica", 20, "bold"),
+                fg="white",
+                bg="#111827",
+            )
+            value_label.grid(row=1, column=1, sticky="w")
 
     def _update_values(self) -> None:
         now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -211,7 +265,24 @@ def parse_args() -> argparse.Namespace:
         default=1.0,
         help="Timeout i sekunder för seriell kommunikation (standard 1.0)",
     )
-    parser.add_argument("--decimals", type=int, default=1, help="Antal decimaler i registren (standard 1)")
+    parser.add_argument(
+        "--co2-decimals",
+        type=int,
+        default=0,
+        help="Antal decimaler för CO₂-registret (standard 0, ppm som heltal)",
+    )
+    parser.add_argument(
+        "--temperature-decimals",
+        type=int,
+        default=1,
+        help="Antal decimaler för temperaturregistret (standard 1)",
+    )
+    parser.add_argument(
+        "--humidity-decimals",
+        type=int,
+        default=1,
+        help="Antal decimaler för luftfuktighetsregistret (standard 1)",
+    )
     parser.add_argument(
         "--co2-register", type=lambda x: int(x, 0), default=0x0008, help="Registeradress för CO₂ (standard 0x0008)"
     )
@@ -251,7 +322,9 @@ def build_provider(args: argparse.Namespace) -> SensorProvider:
             co2_register=args.co2_register,
             temperature_register=args.temperature_register,
             humidity_register=args.humidity_register,
-            decimals=args.decimals,
+            co2_decimals=args.co2_decimals,
+            temperature_decimals=args.temperature_decimals,
+            humidity_decimals=args.humidity_decimals,
         )
     else:
         provider = SimulatedSensorProvider()

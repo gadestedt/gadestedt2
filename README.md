@@ -27,6 +27,16 @@ Ett enkelt Tkinter-baserat GUI som visar simulerade sensorvärden.
 
    Ange `--serial-port` till rätt portnamn (t.ex. `/dev/ttyUSB0` på Linux). Vid behov kan registeradresser justeras via `--co2-register`, `--temperature-register` och `--humidity-register` (hex eller decimal). Lägg till `--simulate` om du vill tvinga simulering även med angiven port.
 
+   Om dina tSENSE-register rapporterar olika noggrannhet kan du även ange decimaler per värde. Standardvärdena matchar Senseairs dokumentation: hel tal för CO₂ och en decimal för temperatur/luftfuktighet:
+
+   ```bash
+   python sensor_gui.py \
+     --serial-port COM3 \
+     --co2-decimals 0 \
+     --temperature-decimals 1 \
+     --humidity-decimals 1
+   ```
+
 5. För mjukare värden kan du justera glättningen (standard 0.0, intervallet 0-1). Högre tal ger mer utjämning och långsammare förändringar, medan `0` visar råvärden utan glättning:
 
    ```bash
