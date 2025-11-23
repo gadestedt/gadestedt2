@@ -89,7 +89,7 @@ class SimulatedSensorProvider(SensorProvider):
     def _update_value(self, name: str) -> float:
         unit, current = self.current_values[name]
         minimum, maximum = self.min_max[name]
-        delta = random.uniform(-0.5, 0.5)
+        delta = random.uniform(-0.2, 0.2)
         updated = max(minimum, min(maximum, current + delta))
         self.current_values[name] = (unit, updated)
         return updated
@@ -101,6 +101,33 @@ class SimulatedSensorProvider(SensorProvider):
     def read(self) -> Iterable[SensorReading]:
         for name, (unit, _) in self.current_values.items():
             yield SensorReading(name, unit, self._update_value(name))
+
+
+class SmoothedSensorProvider(SensorProvider):
+    def __init__(self, provider: SensorProvider, smoothing_factor: float = 0.25) -> None:
+        self.provider = provider
+        self.smoothing_factor = smoothing_factor
+        self._smoothed_values: Dict[str, SensorReading] = {}
+
+    def initial_readings(self) -> Iterable[SensorReading]:
+        for reading in self.provider.initial_readings():
+            self._smoothed_values[reading.name] = reading
+            yield reading
+
+    def _smooth(self, reading: SensorReading) -> SensorReading:
+        previous = self._smoothed_values.get(reading.name)
+        if previous:
+            blended = previous.value + self.smoothing_factor * (reading.value - previous.value)
+        else:
+            blended = reading.value
+
+        smoothed = SensorReading(reading.name, reading.unit, blended)
+        self._smoothed_values[reading.name] = smoothed
+        return smoothed
+
+    def read(self) -> Iterable[SensorReading]:
+        for reading in self.provider.read():
+            yield self._smooth(reading)
 
 
 class SensorGUI:
@@ -205,12 +232,18 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Tvinga simulering även om en seriell port anges (för felsökning)",
     )
+    parser.add_argument(
+        "--smoothing-factor",
+        type=float,
+        default=0.25,
+        help="Andel (0-1) av nytt värde som ska blandas in för mjukare uppdateringar",
+    )
     return parser.parse_args()
 
 
 def build_provider(args: argparse.Namespace) -> SensorProvider:
     if args.serial_port and not args.simulate:
-        return SenseairTSenseReader(
+        provider: SensorProvider = SenseairTSenseReader(
             args.serial_port,
             slave_address=args.slave_address,
             baudrate=args.baudrate,
@@ -220,7 +253,14 @@ def build_provider(args: argparse.Namespace) -> SensorProvider:
             humidity_register=args.humidity_register,
             decimals=args.decimals,
         )
-    return SimulatedSensorProvider()
+    else:
+        provider = SimulatedSensorProvider()
+
+    smoothing = max(0.0, min(1.0, args.smoothing_factor))
+    if smoothing > 0:
+        provider = SmoothedSensorProvider(provider, smoothing_factor=smoothing)
+
+    return provider
 
 
 def main() -> None:
